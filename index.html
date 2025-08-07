@@ -1,4 +1,4 @@
-                <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+<div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
                     <h4 style="color: var(--accent); margin-bottom: 0.5rem;">📱 Alternative: Use CORS Proxy (if running locally)</h4>
                     <p style="color: var(--text-secondary); font-size: 0.875rem;">
                         If you're running this HTML file locally, you might need to:
@@ -879,6 +879,9 @@
             <button class="disconnect-btn" id="disconnectBtn" onclick="disconnectSheets()" style="display: none;">
                 ❌ Disconnect
             </button>
+            <button class="glass-btn" id="refreshBtn" onclick="forceRefresh()" style="display: none;" title="Force refresh from sheet">
+                🔄 Refresh
+            </button>
             <button class="open-sheet-btn" id="openSheetBtn" onclick="openConnectedSheet()" style="display: none;">
                 📄 Open Sheet
             </button>
@@ -1397,6 +1400,7 @@ ID | Title | Description | Status | Priority | Assignee | Proposed Deadline | Cr
                 }
                 document.getElementById('connectBtn').style.display = 'none';
                 document.getElementById('disconnectBtn').style.display = 'flex';
+                document.getElementById('refreshBtn').style.display = 'flex';
                 document.getElementById('openSheetBtn').style.display = 'flex';
                 startSync();
             } else {
@@ -1955,68 +1959,134 @@ ID | Title | Description | Status | Priority | Assignee | Proposed Deadline | Cr
             syncStatus.classList.add('connected');
             syncStatus.querySelector('span').textContent = 'Connected';
             
+            // Show refresh button
+            document.getElementById('refreshBtn').style.display = 'flex';
+            
             // Initial sync
             syncFromSheets();
             
-            // Set up rapid sync (every 3 seconds for real-time updates)
+            // Set up periodic sync (every 5 seconds instead of 3 for stability)
             if (syncInterval) clearInterval(syncInterval);
-            syncInterval = setInterval(syncFromSheets, 3000);
+            syncInterval = setInterval(() => {
+                console.log('⏰ Auto-sync triggered');
+                syncFromSheets();
+            }, 5000);
+        }
+
+        // Force refresh function
+        function forceRefresh() {
+            console.log('🔄 Force refresh triggered');
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳';
+            
+            syncFromSheets().then(() => {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Refresh';
+                }, 1000);
+            });
         }
 
         async function syncFromSheets() {
             if (!sheetsWebAppUrl) return;
             
             try {
-                console.log('Syncing from sheets...');
+                console.log('🔄 Starting sync from sheets...');
                 // Add cache buster to prevent caching
-                const url = sheetsWebAppUrl + '?t=' + Date.now();
-                console.log('Fetching from:', url);
+                const url = sheetsWebAppUrl + '?t=' + Date.now() + '&cache=no';
+                console.log('📡 Fetching from:', url);
                 
+                // Try different fetch approach for better compatibility
                 const response = await fetch(url, {
                     method: 'GET',
-                    cache: 'no-cache',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    credentials: 'omit',
                     headers: {
-                        'Accept': 'application/json',
+                        'Accept': 'application/json,text/plain,*/*',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache'
                     }
                 });
                 
+                console.log('📊 Response status:', response.status);
+                
                 if (!response.ok) {
-                    console.error('Response not OK:', response.status, response.statusText);
+                    console.error('❌ Response not OK:', response.status, response.statusText);
                     return;
                 }
                 
                 const text = await response.text();
-                console.log('Raw response:', text.substring(0, 200));
+                console.log('📝 Response length:', text.length);
+                console.log('📝 First 200 chars:', text.substring(0, 200));
                 
                 let data;
                 try {
                     data = JSON.parse(text);
+                    console.log('✅ Parsed JSON successfully, rows:', data.length);
                 } catch (parseError) {
-                    console.error('Failed to parse JSON:', parseError);
+                    console.error('❌ Failed to parse JSON:', parseError);
                     console.log('Response text:', text);
                     return;
                 }
                 
                 if (data.error) {
-                    console.error('Sheet error:', data.error);
+                    console.error('❌ Sheet error:', data.error);
                     alert('Sheet Error: ' + data.error + '\n\nPlease check:\n1. Script is deployed correctly\n2. URL ends with /exec\n3. Access is set to "Anyone"');
                     return;
                 }
                 
-                // Clear existing tasks
+                // Store current task IDs to avoid duplicates
+                const existingIds = new Set();
+                Object.values(tasks).forEach(columnTasks => {
+                    columnTasks.forEach(task => existingIds.add(task.id));
+                });
+                
+                // Clear existing tasks for fresh sync
                 Object.keys(tasks).forEach(key => tasks[key] = []);
                 
                 // Load tasks from sheets
                 let taskCount = 0;
-                data.forEach(row => {
+                let skippedCount = 0;
+                
+                data.forEach((row, index) => {
+                    // Skip empty rows
+                    if (!row || typeof row !== 'object') {
+                        skippedCount++;
+                        return;
+                    }
+                    
+                    // Log first few rows for debugging
+                    if (index < 3) {
+                        console.log(`Row ${index}:`, row);
+                    }
+                    
+                    // Check if Title exists and is not empty
                     if (row.Title && row.Title.toString().trim() !== '') {
                         taskCount++;
+                        
+                        // Parse status - handle variations
+                        let status = 'todo';
+                        if (row.Status) {
+                            status = row.Status.toString().toLowerCase()
+                                .replace(/\s+/g, '-')
+                                .replace('to-do', 'todo');
+                        }
+                        
+                        // Validate status
+                        const validStatuses = ['todo', 'in-progress', 'in-review', 'done', 'on-hold', 'blocked', 'discarded'];
+                        if (!validStatuses.includes(status)) {
+                            console.log(`⚠️ Invalid status "${row.Status}" for task "${row.Title}", defaulting to "todo"`);
+                            status = 'todo';
+                        }
+                        
                         const task = {
                             id: row.ID ? parseInt(row.ID) : taskIdCounter++,
                             title: row.Title.toString().trim(),
                             description: row.Description || '',
-                            status: row.Status ? row.Status.toLowerCase().replace(' ', '-') : 'todo',
-                            priority: row.Priority || 'medium',
+                            status: status,
+                            priority: (row.Priority || 'medium').toLowerCase(),
                             assignee: row.Assignee || '',
                             deadline: row['Proposed Deadline'] || '',
                             createdAt: row['Created Date'] && row['Created Time'] ? 
@@ -2028,33 +2098,70 @@ ID | Title | Description | Status | Priority | Assignee | Proposed Deadline | Cr
                             blockerNote: row['Blocker Note'] || ''
                         };
                         
-                        // Validate status
-                        const validStatuses = ['todo', 'in-progress', 'in-review', 'done', 'on-hold', 'blocked', 'discarded'];
-                        if (!validStatuses.includes(task.status)) {
-                            task.status = 'todo';
+                        // Add to appropriate column
+                        if (!tasks[task.status]) {
+                            console.error(`❌ Invalid status: ${task.status}`);
+                            tasks['todo'].push(task);
+                        } else {
+                            tasks[task.status].push(task);
                         }
                         
-                        tasks[task.status].push(task);
-                        
+                        // Update ID counter
                         if (task.id >= taskIdCounter) {
                             taskIdCounter = task.id + 1;
                         }
+                    } else if (row.ID || row.Description || row.Status) {
+                        // Row has some data but no title
+                        console.log(`⚠️ Skipping row ${index + 1} - missing Title:`, row);
+                        skippedCount++;
                     }
                 });
                 
-                console.log(`Loaded ${taskCount} tasks from sheet`);
+                console.log(`✅ Sync complete: ${taskCount} tasks loaded, ${skippedCount} rows skipped`);
+                console.log('📊 Task distribution:', Object.keys(tasks).map(k => `${k}: ${tasks[k].length}`).join(', '));
+                
                 renderTasks();
                 
                 // Don't save to local storage when syncing from sheets
                 // as sheets is the source of truth when connected
                 
             } catch (error) {
-                console.error('Sync error:', error);
+                console.error('❌ Sync error:', error);
+                console.error('Stack:', error.stack);
+                
                 if (error.message.includes('Failed to fetch')) {
-                    console.log('CORS or Network error. Make sure:\n1. URL ends with /exec\n2. Script is deployed as "Anyone"\n3. You are online');
+                    console.log('🔧 Possible solutions:');
+                    console.log('1. Check if URL ends with /exec (not /dev)');
+                    console.log('2. Verify script is deployed with "Anyone" access');
+                    console.log('3. Check browser console for CORS errors');
+                    console.log('4. Try re-deploying the Apps Script');
+                    
+                    // Try alternative fetch method
+                    console.log('🔄 Trying alternative fetch method...');
+                    tryAlternativeFetch();
                 }
             }
         }
+
+        // Alternative fetch method for troubleshooting
+        async function tryAlternativeFetch() {
+            if (!sheetsWebAppUrl) return;
+            
+            try {
+                // Try with minimal options
+                const response = await fetch(sheetsWebAppUrl + '?random=' + Math.random());
+                const text = await response.text();
+                console.log('🔄 Alternative fetch successful, response:', text.substring(0, 100));
+            } catch (err) {
+                console.error('❌ Alternative fetch also failed:', err);
+            }
+        }
+
+        // Manual sync function for debugging
+        window.manualSync = async function() {
+            console.log('🔧 Manual sync triggered');
+            await syncFromSheets();
+        };
 
         async function syncToSheets(task, action) {
             if (!sheetsWebAppUrl) return;
