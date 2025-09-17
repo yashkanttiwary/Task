@@ -1,0 +1,111 @@
+generator client {
+	provider = "prisma-client-js"
+}
+
+datasource db {
+	provider = "postgresql"
+	url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+	VISITOR
+	REGISTERED
+	SUBSCRIBER
+	TRIAL
+	ANNUAL
+}
+
+enum Category {
+	MEDICAL
+	CRIMINAL
+	CIVIL
+	COOPERATIVE
+}
+
+enum Plan {
+	TRIAL
+	MONTHLY
+	ANNUAL
+}
+
+enum SubscriptionStatus {
+	ACTIVE
+	CANCELLED
+	EXPIRED
+	PAST_DUE
+}
+
+model User {
+	id               String        @id @default(cuid())
+	email            String?       @unique
+	phone            String?       @unique
+	name             String?
+	medicalLicense   String?
+	specialization   String?
+	hospital         String?
+	city             String?
+	state            String?
+	role             UserRole      @default(VISITOR)
+	subscription     Subscription?
+	comments         Comment[]
+	savedJudgments   Judgment[]
+	createdAt        DateTime      @default(now())
+	updatedAt        DateTime      @updatedAt
+}
+
+model Judgment {
+	id               String      @id @default(cuid())
+	title            String
+	court            String
+	summary          String      @db.Text
+	content          String      @db.Text
+	category         Category
+	tags             String[]
+	viewCount        Int         @default(0)
+	relatedToMedical Boolean     @default(false)
+	comments         Comment[]
+	savedBy          User[]
+	publishedAt      DateTime
+	author           String
+	attachments      Attachment[]
+	createdAt        DateTime     @default(now())
+	updatedAt        DateTime     @updatedAt
+}
+
+model Subscription {
+	id         String              @id @default(cuid())
+	userId     String              @unique
+	user       User                @relation(fields: [userId], references: [id])
+	plan       Plan
+	status     SubscriptionStatus  @default(ACTIVE)
+	startDate  DateTime            @default(now())
+	endDate    DateTime
+	paymentId  String
+	createdAt  DateTime            @default(now())
+	updatedAt  DateTime            @updatedAt
+}
+
+model Comment {
+	id               String     @id @default(cuid())
+	userId           String
+	user             User       @relation(fields: [userId], references: [id])
+	judgmentId       String
+	judgment         Judgment   @relation(fields: [judgmentId], references: [id])
+	content          String     @db.Text
+	upvotes          Int        @default(0)
+	isExpertOpinion  Boolean    @default(false)
+	parentId         String?
+	parent           Comment?   @relation("CommentToReplies", fields: [parentId], references: [id])
+	replies          Comment[]  @relation("CommentToReplies")
+	createdAt        DateTime   @default(now())
+	updatedAt        DateTime   @updatedAt
+}
+
+model Attachment {
+	id          String    @id @default(cuid())
+	judgmentId  String
+	judgment    Judgment  @relation(fields: [judgmentId], references: [id])
+	title       String
+	url         String
+	createdAt   DateTime  @default(now())
+}

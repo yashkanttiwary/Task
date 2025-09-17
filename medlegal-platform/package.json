@@ -1,0 +1,52 @@
+{
+  "name": "medlegal-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.17.0",
+    "pusher-js": "^8.4.0",
+    "@upstash/ratelimit": "^1.0.0",
+    "@upstash/redis": "^1.28.3",
+    "autoprefixer": "^10.4.20",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.13",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.4.1",
+    "lucide-react": "^0.441.0",
+    "mixpanel-browser": "^2.53.0",
+    "next": "14.2.5",
+    "next-auth": "^4.24.7",
+    "plausible-tracker": "^0.3.9",
+    "postcss": "^8.4.47",
+    "pusher": "^5.1.2",
+    "razorpay": "^2.9.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "resend": "^3.2.0",
+    "sanitize-html": "^2.13.0",
+    "tailwind-merge": "^2.5.2",
+    "tailwindcss": "^3.4.12",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.5.4",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.17.0"
+  }
+}
