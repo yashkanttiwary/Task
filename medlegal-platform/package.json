@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",
-    "@pusher/pusher-js": "^8.4.0",
+    "pusher-js": "^8.4.0",
     "@upstash/ratelimit": "^1.0.0",
     "@upstash/redis": "^1.28.3",
     "autoprefixer": "^10.4.20",
@@ -31,7 +31,6 @@
     "mixpanel-browser": "^2.53.0",
     "next": "14.2.5",
     "next-auth": "^4.24.7",
-    "next-safe": "^5.3.2",
     "plausible-tracker": "^0.3.9",
     "postcss": "^8.4.47",
     "pusher": "^5.1.2",
